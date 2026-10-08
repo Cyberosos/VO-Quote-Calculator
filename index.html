@@ -73,6 +73,23 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 .hint{color:var(--muted);font-size:.82rem;margin:8px 0 0}
 .hint code{font-family:var(--f-mono);background:var(--sunk);padding:1px 5px;border-radius:4px}
 
+/* tashkeel bar: lives under the script, only when the script has Arabic */
+.tk{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px}
+.tk-top{display:flex;align-items:center;gap:10px;min-width:0}
+.tk-glyph{flex:none;width:36px;height:36px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-family:var(--f-body);font-weight:700;font-size:1.15rem;line-height:1}
+.tk-head{min-width:0}
+.tk-head b{display:block;font-weight:600;font-size:.95rem}
+.tk-head small{display:block;color:var(--muted);font-size:.8rem;line-height:1.4}
+.tk-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tk-ctl .seg{flex:0 1 auto}
+.btn.tk-go{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;padding-inline:18px}
+.btn.tk-go:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.tk-msg{margin:0;min-height:1.2em;font-size:.82rem;color:var(--muted)}
+.tk-msg.ok{color:var(--good)}
+.tk-msg.err{color:#B4442B}
+#script.has-tk{line-height:2.05}
+#script[readonly]{opacity:.8;cursor:progress}
+
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
 .stat{background:var(--sunk);border-radius:10px;padding:10px 12px}
 .stat b{display:block;font-family:var(--f-mono);font-weight:500;font-size:1.25rem;font-variant-numeric:tabular-nums}
@@ -197,6 +214,23 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
       </div>
       <textarea id="script" spellcheck="false" aria-label="Script"></textarea>
       <p class="hint" id="hintText"></p>
+      <div class="tk" id="tkBar" hidden>
+        <div class="tk-top">
+          <span class="tk-glyph" aria-hidden="true">شَ</span>
+          <div class="tk-head"><b data-i18n="tkTitle">Arabic tashkeel</b><small data-i18n="tkSub">Add diacritics to the Arabic lines before you record.</small></div>
+        </div>
+        <div class="tk-ctl">
+          <div class="seg" role="radiogroup" aria-label="Tashkeel level">
+            <label><input type="radio" name="tkMode" id="tkModeFull" value="full" checked><span data-i18n="tkFull">Full</span></label>
+            <label><input type="radio" name="tkMode" id="tkModeLight" value="light"><span data-i18n="tkLight">Light</span></label>
+          </div>
+          <button class="btn tk-go" id="tkRun" type="button">Start tashkeel</button>
+          <button class="btn" id="tkStop" type="button" data-i18n="tkStop" hidden>Stop</button>
+          <button class="btn" id="tkUndo" type="button" data-i18n="tkUndo" hidden>Undo</button>
+          <button class="btn" id="tkRemove" type="button" data-i18n="tkRemove" hidden>Remove tashkeel</button>
+        </div>
+        <p class="tk-msg" id="tkMsg" role="status"></p>
+      </div>
       <div class="stats">
         <div class="stat"><b id="sWords">0</b><span data-i18n="words">Words counted</span></div>
         <div class="stat"><b id="sEn">0</b><span data-i18n="enWords">English words</span></div>
@@ -327,6 +361,12 @@ const T = {
   myBiz:"Business name",myName:"Your name",myEmail:"Email",myWeb:"Website",
   speed:"Reading speed",slow:"Slow",normal:"Normal",fast:"Fast",wpmEn:"English words per minute",wpmAr:"Arabic words per minute",
   pricing:"Pricing",perWord:"Per word",perMinute:"Per minute",flat:"Flat rate",ratePerWord:"Price per {n} words",ratePerMin:"Price per minute",rateFlat:"Flat price",blockSize:"Charge per (words)",
+  tkTitle:"Arabic tashkeel",tkSub:"Add diacritics to the Arabic lines before you record. English words and [notes] stay as they are.",tkFull:"Full",tkLight:"Light (tricky words only)",
+  tkAdd:"Start tashkeel",tkRedo:"Redo tashkeel",tkBusy:"Adding tashkeel…",tkStop:"Stop",tkUndo:"Undo",tkRemove:"Remove tashkeel",
+  tkThinking:"Reading the script…",tkDone:"Tashkeel added. Check the word endings before you record.",tkChanged:"Done, but some letters changed besides the diacritics. Check the script, or press Undo.",
+  tkRemoved:"Tashkeel removed.",tkUndone:"Original script restored.",tkLong:"The script is too long for one pass. Split it and add tashkeel to each part.",
+  tkDenied:"Claude wasn't allowed for this page, so tashkeel is off.",tkLimit:"You've reached your Claude usage limit. Try again later.",
+  tkFail:"Tashkeel didn't finish, so your script is unchanged. Try again.",tkOffline:"Couldn't reach the tashkeel server. Check your internet connection.",tkUnavail:"Tashkeel isn't available in this view.",
   recLang:"Recording language",lMix:"Both (mixed)",recLangHint:"Sets the reading speed used for the estimated audio length.",currency:"Currency",days:"Delivery (days)",extras:"Extras (fixed prices)",rush:"Rush delivery (24h)",comm:"Broadcast rights use",comm2:"Commercial rights use",mix:"Music & sound mixing",rev:"Extra revisions",count:"How many",
   notesH:"Notes on the PDF",
   defNotes:"Payment through a Fiverr custom offer.\nIncludes one free revision for pronunciation or delivery.\nScript changes after recording are quoted separately.",
@@ -347,6 +387,12 @@ const T = {
   myBiz:"اسم النشاط",myName:"اسمك",myEmail:"البريد الإلكتروني",myWeb:"الموقع",
   speed:"سرعة القراءة",slow:"بطيئة",normal:"عادية",fast:"سريعة",wpmEn:"كلمة إنجليزية في الدقيقة",wpmAr:"كلمة عربية في الدقيقة",
   pricing:"التسعير",perWord:"بالكلمة",perMinute:"بالدقيقة",flat:"سعر ثابت",ratePerWord:"السعر لكل {n} كلمة",ratePerMin:"سعر الدقيقة",rateFlat:"السعر الثابت",blockSize:"التسعير لكل (كلمة)",
+  tkTitle:"التشكيل العربي",tkSub:"أضف الحركات إلى السطور العربية قبل التسجيل. الكلمات الإنجليزية و[الملاحظات] تبقى كما هي.",tkFull:"كامل",tkLight:"خفيف (المواضع الملتبسة فقط)",
+  tkAdd:"ابدأ التشكيل",tkRedo:"أعد التشكيل",tkBusy:"جارٍ التشكيل…",tkStop:"إيقاف",tkUndo:"تراجع",tkRemove:"إزالة التشكيل",
+  tkThinking:"جارٍ قراءة النص…",tkDone:"تم التشكيل. راجع أواخر الكلمات قبل التسجيل.",tkChanged:"تم، لكن بعض الحروف تغيّرت إلى جانب الحركات. راجع النص أو اضغط تراجع.",
+  tkRemoved:"تمت إزالة التشكيل.",tkUndone:"تمت استعادة النص الأصلي.",tkLong:"النص طويل على دفعة واحدة. قسّمه وشكّل كل جزء على حدة.",
+  tkDenied:"لم يُسمح لهذه الصفحة باستخدام Claude، لذلك التشكيل متوقف.",tkLimit:"وصلت إلى حد استخدام Claude. حاول لاحقًا.",
+  tkFail:"لم يكتمل التشكيل، والنص لم يتغيّر. حاول مرة أخرى.",tkOffline:"تعذّر الوصول إلى خادم التشكيل. تحقق من اتصال الإنترنت.",tkUnavail:"التشكيل غير متاح في هذه الصفحة.",
   recLang:"لغة التسجيل",lMix:"الاثنتان (مختلط)",recLangHint:"تحدد سرعة القراءة المستخدمة لحساب المدة المتوقعة.",currency:"العملة",days:"التسليم (أيام)",extras:"إضافات (أسعار ثابتة)",rush:"تسليم عاجل (٢٤ ساعة)",comm:"حقوق البث الإذاعي",comm2:"حقوق الاستخدام التجاري",mix:"دمج موسيقى ومؤثرات",rev:"تعديلات إضافية",count:"العدد",
   notesH:"ملاحظات على ملف PDF",
   defNotes:"الدفع عن طريق عرض مخصص على فايفر.\nيشمل تعديلًا مجانيًا واحدًا للنطق أو الأداء.\nأي تغيير في النص بعد التسجيل يُسعَّر بشكل منفصل.",
@@ -431,6 +477,7 @@ function render(){
     ? items.map(l => `<div class="line"><span>${esc(l.desc)}${l.sub?`<small>${esc(l.sub)}</small>`:''}</span><span>${money(l.amt)}</span></div>`).join('')
     : `<div class="line"><span style="color:var(--muted)">${t('empty')}</span><span></span></div>`;
   $('total').textContent = money(total);
+  updateTk();
   save();
 }
 
@@ -590,12 +637,117 @@ $('copyBtn').addEventListener('click', () => {
 });
 function setStatus(msg, err){ $('status').textContent = msg; $('status').classList.toggle('err', !!err); }
 
+/* ---------- Arabic tashkeel ----------
+   Inside Claude: runs on the viewer's own Claude plan (sample capability).
+   Hosted anywhere else: goes through the AOVO Cloudflare server (Claude API). */
+const TK_URL = 'https://tashkeel.hamdeen96.workers.dev';
+const TK_MARKS = /[ً-ْٰ]/g;
+const stripTk = s => s.replace(TK_MARKS, '');
+const hasTk = s => /[ً-ْ]/.test(s);
+const normTk = s => stripTk(s).replace(/[أإآٱ]/g, 'ا').replace(/\s+/g, ' ').trim();
+let tkSample = null, tkBusy = false, tkCtl = null, tkUndoText = null, tkApplied = false;
+const tkReady = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('sample').then(s => (tkSample = s)).catch(() => null)
+  : Promise.resolve(null);
+
+function setTk(msg, kind){ $('tkMsg').textContent = msg; $('tkMsg').className = 'tk-msg' + (kind ? ' ' + kind : ''); }
+function updateTk(){
+  const txt = $('script').value, on = hasTk(txt);
+  $('script').classList.toggle('has-tk', on);
+  if (tkBusy) return;
+  $('tkBar').hidden = !AR.test(stripTk(txt).replace(/\[[^\]]*\]/g, ''));
+  $('tkRun').textContent = t(tkApplied ? 'tkRedo' : 'tkAdd');
+  $('tkRemove').hidden = !on;
+  $('tkUndo').hidden = tkUndoText === null;
+}
+function tkBusyUI(b){
+  tkBusy = b;
+  $('script').readOnly = b;
+  $('tkRun').disabled = b; $('tkRun').textContent = b ? t('tkBusy') : $('tkRun').textContent;
+  $('tkStop').hidden = !b;
+  if (b){ $('tkUndo').hidden = true; $('tkRemove').hidden = true; }
+}
+function tkPrompt(text, mode){
+  const what = mode === 'light'
+    ? 'Add tashkeel ONLY where a reader could misread or mispronounce a word: ambiguous words, word endings that carry i\'rab, shadda, and uncommon names or terms. Leave obvious words without diacritics.'
+    : 'Add complete and correct tashkeel (fatha, damma, kasra, sukun, shadda, tanween) to every Arabic word.';
+  return 'You are an expert in Arabic grammar (nahw and sarf) preparing a script for a professional voiceover artist.\n'
+    + what + '\n\nRules:\n'
+    + '- Only add diacritics. Never add, remove, reorder or replace any word or letter.\n'
+    + '- Give every word ending the correct i\'rab for its grammatical role in the sentence.\n'
+    + '- Keep English words, numbers, punctuation, line breaks and spacing exactly as they are.\n'
+    + '- Keep anything inside [square brackets] exactly as it is; those are performance notes, not script.\n'
+    + '- If a word already has diacritics, keep them when correct and fix them when wrong.\n'
+    + '- Reply with ONLY the full script, from its first line to its last, with nothing before or after it: no title, no explanation, no quotation marks, no code fence.\n\n'
+    + 'The script is between the <text> tags:\n<text>\n' + text + '\n</text>';
+}
+const tkClean = s => s.replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').replace(/^\s*<text>\s*\n?/i, '').replace(/\n?<\/text>\s*$/i, '').trim();
+
+async function tkViaClaude(text, mode, signal){
+  await tkReady;
+  if (!tkSample) throw {code:'unavailable'};
+  let first = true;
+  const r = await tkSample(tkPrompt(text, mode), {
+    signal, cache:false,
+    onText: ({text:so}) => { if (first){ setTk(t('tkBusy')); first = false; } $('script').value = tkClean(so); $('script').classList.add('has-tk'); }
+  });
+  if (r.truncated) throw {code:'truncated'};
+  return tkClean(r.text);
+}
+async function tkViaServer(text, mode, signal){
+  let res;
+  try { res = await fetch(TK_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text, mode}), signal}); }
+  catch(e){ throw {code: e && e.name === 'AbortError' ? 'cancelled' : 'offline'}; }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw {code:'server', message:data.error};
+  return tkClean(data.result || '');
+}
+
+$('tkRun').addEventListener('click', async () => {
+  if (tkBusy) return;
+  const src = $('script').value, mode = val('tkMode') || 'full';
+  tkCtl = new AbortController();
+  tkBusyUI(true); setTk(t('tkThinking'));
+  try {
+    const out = window.claude ? await tkViaClaude(src, mode, tkCtl.signal) : await tkViaServer(src, mode, tkCtl.signal);
+    if (!out) throw {code:'empty'};
+    $('script').value = out; tkUndoText = src; tkApplied = true;
+    const same = normTk(out) === normTk(src);
+    setTk(t(same ? 'tkDone' : 'tkChanged'), same ? 'ok' : 'err');
+  } catch(e){
+    $('script').value = src;
+    const c = e && e.code;
+    const msg = c === 'cancelled' ? ''
+      : c === 'not_granted' || c === 'sampling_disabled' ? t('tkDenied')
+      : c === 'rate_limited' ? t('tkLimit')
+      : c === 'truncated' || c === 'prompt_too_large' ? t('tkLong')
+      : c === 'offline' ? t('tkOffline')
+      : c === 'unavailable' || c === 'capability_disabled' || c === 'not_declared' ? t('tkUnavail')
+      : c === 'server' && e.message ? e.message
+      : t('tkFail');
+    setTk(msg, msg ? 'err' : '');
+  } finally {
+    tkBusyUI(false); updateSampleTag(); render();
+  }
+});
+$('tkStop').addEventListener('click', () => { if (tkCtl) tkCtl.abort(); });
+$('tkUndo').addEventListener('click', () => {
+  if (tkUndoText === null) return;
+  $('script').value = tkUndoText; tkUndoText = null; tkApplied = false;
+  setTk(t('tkUndone')); updateSampleTag(); render();
+});
+$('tkRemove').addEventListener('click', () => {
+  const src = $('script').value;
+  $('script').value = stripTk(src); tkUndoText = src; tkApplied = false;
+  setTk(t('tkRemoved'), 'ok'); updateSampleTag(); render();
+});
+
 /* ---------- save / load ---------- */
 const KEYS = ['wpmEn','wpmAr','rate','blockSize','currency','days','xRush','xRushV','xComm','xCommV','xCom2','xCom2V','xMix','xMixV','xRev','xRevN','xRevV','myName','myBiz','myEmail','myWeb','notes'];
 let notesTouched = false;
 function save(){
   try {
-    const o = {lang, pace:val('pace'), mode:val('mode'), doctype:val('doctype'), recLang:val('recLang'), script:$('script').value, notesTouched};
+    const o = {lang, pace:val('pace'), mode:val('mode'), doctype:val('doctype'), recLang:val('recLang'), tkMode:val('tkMode'), script:$('script').value, notesTouched};
     KEYS.forEach(k => o[k] = $(k).type==='checkbox' ? $(k).checked : $(k).value);
     localStorage.setItem('vqc-v3', JSON.stringify(o));
   } catch(e){}
@@ -605,7 +757,7 @@ function load(){
   let o = null; try { o = JSON.parse(localStorage.getItem('vqc-v3')); } catch(e){}
   if (!o){ $('script').value = SAMPLE; return; }
   KEYS.forEach(k => { if (o[k] !== undefined){ if ($(k).type==='checkbox') $(k).checked = o[k]; else $(k).value = o[k]; } });
-  ['pace','mode','doctype','recLang'].forEach(n => { if (o[n]){ const r = document.querySelector(`input[name=${n}][value=${o[n]}]`); if (r) r.checked = true; } });
+  ['pace','mode','doctype','recLang','tkMode'].forEach(n => { if (o[n]){ const r = document.querySelector(`input[name=${n}][value=${o[n]}]`); if (r) r.checked = true; } });
   $('script').value = o.script ?? SAMPLE;
   notesTouched = !!o.notesTouched;
   if (o.lang) lang = o.lang;
@@ -625,11 +777,11 @@ function applyLang(){
 const updateSampleTag = () => { $('sampleTag').hidden = $('script').value !== SAMPLE; };
 
 $('langBtn').addEventListener('click', () => { lang = lang==='en' ? 'ar' : 'en'; applyLang(); });
-$('sampleBtn').addEventListener('click', () => { $('script').value = SAMPLE; updateSampleTag(); render(); });
-$('clearBtn').addEventListener('click', () => { $('script').value = ''; updateSampleTag(); render(); $('script').focus(); });
+$('sampleBtn').addEventListener('click', () => { $('script').value = SAMPLE; tkUndoText = null; tkApplied = false; setTk(''); updateSampleTag(); render(); });
+$('clearBtn').addEventListener('click', () => { $('script').value = ''; tkUndoText = null; tkApplied = false; setTk(''); updateSampleTag(); render(); $('script').focus(); });
 $('app').addEventListener('input', e => {
   const id = e.target.id;
-  if (id==='script') updateSampleTag();
+  if (id==='script'){ updateSampleTag(); tkUndoText = null; tkApplied = false; setTk(''); }
   if (id==='qName') qNameTouched = true;
   if (id==='notes') notesTouched = true;
   if (id!=='fallback') render();
@@ -656,6 +808,7 @@ load();
 showLogo();
 applyLang();
 </script>
+
 
 <script>
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
