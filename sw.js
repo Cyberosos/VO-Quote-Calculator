@@ -1,5 +1,5 @@
 // Offline support: app files are cached on install; libraries and fonts are cached the first time they load.
-const CACHE = 'vo-quote-v2';
+const CACHE = 'vo-quote-v3';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
