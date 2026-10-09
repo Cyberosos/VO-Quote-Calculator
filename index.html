@@ -18,6 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <style>
 /* Layout: studio console. Script + business settings on the left, sticky quote rack on the right; phones stack script → quote → settings. The PDF invoice is a fixed light A4 sheet. */
 :root{
@@ -228,6 +229,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
           <button class="btn" id="tkStop" type="button" data-i18n="tkStop" hidden>Stop</button>
           <button class="btn" id="tkUndo" type="button" data-i18n="tkUndo" hidden>Undo</button>
           <button class="btn" id="tkRemove" type="button" data-i18n="tkRemove" hidden>Remove tashkeel</button>
+          <button class="btn tk-go" id="tkDocx" type="button" data-i18n="tkDocx" hidden>Download .docx</button>
         </div>
         <p class="tk-msg" id="tkMsg" role="status"></p>
       </div>
@@ -362,7 +364,7 @@ const T = {
   speed:"Reading speed",slow:"Slow",normal:"Normal",fast:"Fast",wpmEn:"English words per minute",wpmAr:"Arabic words per minute",
   pricing:"Pricing",perWord:"Per word",perMinute:"Per minute",flat:"Flat rate",ratePerWord:"Price per {n} words",ratePerMin:"Price per minute",rateFlat:"Flat price",blockSize:"Charge per (words)",
   tkTitle:"Arabic tashkeel",tkSub:"Add diacritics to the Arabic lines before you record. English words and [notes] stay as they are.",tkFull:"Full",tkLight:"Light (tricky words only)",
-  tkAdd:"Start tashkeel",tkRedo:"Redo tashkeel",tkBusy:"Adding tashkeel…",tkStop:"Stop",tkUndo:"Undo",tkRemove:"Remove tashkeel",
+  tkAdd:"Start tashkeel",tkRedo:"Redo tashkeel",tkBusy:"Adding tashkeel…",tkStop:"Stop",tkUndo:"Undo",tkRemove:"Remove tashkeel",tkDocx:"Download .docx",docxSaved:"Script saved as a Word file.",docxErr:"Couldn't build the Word file. Try again.",docxTitle:"Voiceover script",
   tkThinking:"Reading the script…",tkDone:"Tashkeel added. Check the word endings before you record.",tkChanged:"Done, but some letters changed besides the diacritics. Check the script, or press Undo.",
   tkRemoved:"Tashkeel removed.",tkUndone:"Original script restored.",tkLong:"The script is too long for one pass. Split it and add tashkeel to each part.",
   tkDenied:"Claude wasn't allowed for this page, so tashkeel is off.",tkLimit:"You've reached your Claude usage limit. Try again later.",
@@ -388,7 +390,7 @@ const T = {
   speed:"سرعة القراءة",slow:"بطيئة",normal:"عادية",fast:"سريعة",wpmEn:"كلمة إنجليزية في الدقيقة",wpmAr:"كلمة عربية في الدقيقة",
   pricing:"التسعير",perWord:"بالكلمة",perMinute:"بالدقيقة",flat:"سعر ثابت",ratePerWord:"السعر لكل {n} كلمة",ratePerMin:"سعر الدقيقة",rateFlat:"السعر الثابت",blockSize:"التسعير لكل (كلمة)",
   tkTitle:"التشكيل العربي",tkSub:"أضف الحركات إلى السطور العربية قبل التسجيل. الكلمات الإنجليزية و[الملاحظات] تبقى كما هي.",tkFull:"كامل",tkLight:"خفيف (المواضع الملتبسة فقط)",
-  tkAdd:"ابدأ التشكيل",tkRedo:"أعد التشكيل",tkBusy:"جارٍ التشكيل…",tkStop:"إيقاف",tkUndo:"تراجع",tkRemove:"إزالة التشكيل",
+  tkAdd:"ابدأ التشكيل",tkRedo:"أعد التشكيل",tkBusy:"جارٍ التشكيل…",tkStop:"إيقاف",tkUndo:"تراجع",tkRemove:"إزالة التشكيل",tkDocx:"تحميل ملف Word",docxSaved:"تم حفظ النص كملف Word.",docxErr:"تعذّر إنشاء ملف Word. حاول مرة أخرى.",docxTitle:"نص التعليق الصوتي",
   tkThinking:"جارٍ قراءة النص…",tkDone:"تم التشكيل. راجع أواخر الكلمات قبل التسجيل.",tkChanged:"تم، لكن بعض الحروف تغيّرت إلى جانب الحركات. راجع النص أو اضغط تراجع.",
   tkRemoved:"تمت إزالة التشكيل.",tkUndone:"تمت استعادة النص الأصلي.",tkLong:"النص طويل على دفعة واحدة. قسّمه وشكّل كل جزء على حدة.",
   tkDenied:"لم يُسمح لهذه الصفحة باستخدام Claude، لذلك التشكيل متوقف.",tkLimit:"وصلت إلى حد استخدام Claude. حاول لاحقًا.",
@@ -658,6 +660,7 @@ function updateTk(){
   $('tkBar').hidden = !AR.test(stripTk(txt).replace(/\[[^\]]*\]/g, ''));
   $('tkRun').textContent = t(tkApplied ? 'tkRedo' : 'tkAdd');
   $('tkRemove').hidden = !on;
+  $('tkDocx').hidden = !on;
   $('tkUndo').hidden = tkUndoText === null;
 }
 function tkBusyUI(b){
@@ -665,7 +668,7 @@ function tkBusyUI(b){
   $('script').readOnly = b;
   $('tkRun').disabled = b; $('tkRun').textContent = b ? t('tkBusy') : $('tkRun').textContent;
   $('tkStop').hidden = !b;
-  if (b){ $('tkUndo').hidden = true; $('tkRemove').hidden = true; }
+  if (b){ $('tkUndo').hidden = true; $('tkRemove').hidden = true; $('tkDocx').hidden = true; }
 }
 function tkPrompt(text, mode){
   const what = mode === 'light'
@@ -729,6 +732,59 @@ $('tkRun').addEventListener('click', async () => {
   } finally {
     tkBusyUI(false); updateSampleTag(); render();
   }
+});
+
+/* ---------- Word (.docx) export of the script ---------- */
+const xmlEsc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const AR_RUN = /([؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿][؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿\s،؛؟٪-٭.,!?:;()«»"'\-\d٠-٩]*)/;
+function docxRun(text, {rtl=false, note=false, bold=false, size=32}={}){
+  if (!text) return '';
+  const rp = `<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${bold?'<w:b/><w:bCs/>':''}${note?'<w:i/><w:iCs/><w:color w:val="8C7666"/>':''}${rtl?'<w:rtl/>':''}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr>`;
+  return `<w:r>${rp}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
+}
+function docxPara(line, opts={}){
+  const isAr = AR.test(line);
+  const pPr = `<w:pPr>${isAr?'<w:bidi/>':''}<w:spacing w:after="160" w:line="${opts.title?276:420}" w:lineRule="auto"/></w:pPr>`;
+  let runs = '';
+  line.split(/(\[[^\]]*\])/).forEach(part => {
+    if (!part) return;
+    if (/^\[.*\]$/.test(part)){ runs += docxRun(part, {rtl:AR.test(part), note:true, size:24}); return; }
+    part.split(AR_RUN).forEach(seg => { if (seg) runs += docxRun(seg, {rtl:AR.test(seg), bold:opts.title, size:opts.title?36:32}); });
+  });
+  return `<w:p>${pPr}${runs}</w:p>`;
+}
+async function buildDocx(){
+  const title = $('project').value.trim() || t('docxTitle');
+  const body = [docxPara(title, {title:true}), '<w:p/>']
+    .concat($('script').value.replace(/\r/g,'').split('\n').map(l => l.trim() ? docxPara(l) : '<w:p/>')).join('');
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1300" w:right="1300" w:bottom="1300" w:left="1300" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml', doc);
+  return zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+async function saveFile(filename, blob){
+  if (window.claude && window.claude.use){
+    const dl = await window.claude.use('downloads');
+    if (!dl) throw {code:'unavailable'};
+    return dl.save({filename, data: blob});
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+$('tkDocx').addEventListener('click', async () => {
+  const btn = $('tkDocx'); btn.disabled = true;
+  try {
+    if (!window.JSZip) throw new Error('lib');
+    const blob = await buildDocx();
+    const safe = s => s.replace(/[\\/:*?"<>|]+/g,'').trim();
+    const name = safe($('project').value) || (lang==='ar' ? 'نص' : 'script');
+    await saveFile(`${name} - ${lang==='ar' ? 'مشكّل' : 'tashkeel'}.docx`, blob);
+    setTk(t('docxSaved'), 'ok');
+  } catch(e){ setTk(e && e.code==='declined' ? t('declined') : t('docxErr'), e && e.code==='declined' ? '' : 'err'); }
+  btn.disabled = false;
 });
 $('tkStop').addEventListener('click', () => { if (tkCtl) tkCtl.abort(); });
 $('tkUndo').addEventListener('click', () => {
