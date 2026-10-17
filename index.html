@@ -96,6 +96,12 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 .stat{background:var(--sunk);border-radius:10px;padding:10px 12px}
 .stat b{display:block;font-family:var(--f-mono);font-weight:500;font-size:1.25rem;font-variant-numeric:tabular-nums}
 .stat span{color:var(--muted);font-size:.75rem;letter-spacing:.03em}
+.stat-edit{background:var(--accent-soft);outline:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.stat-edit input{display:block;width:100%;min-width:0;border:0;border-bottom:1.5px dashed var(--accent);background:transparent;padding:0 0 2px;font-family:var(--f-mono);font-weight:500;font-size:1.25rem;font-variant-numeric:tabular-nums;color:var(--ink);-moz-appearance:textfield}
+.stat-edit input::-webkit-outer-spin-button,.stat-edit input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stat-edit input:focus{outline:none;border-bottom-style:solid}
+.stat-edit span{display:block;margin-top:4px}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-size:.75rem;font-weight:600;cursor:pointer;text-decoration:underline}
 
 .groups{display:grid;gap:24px}
 .group h3{font-size:.75rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
@@ -253,7 +259,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
         <p class="tk-msg" id="tkMsg" role="status"></p>
       </div>
       <div class="stats">
-        <div class="stat"><b id="sWords">0</b><span data-i18n="words">Words counted</span></div>
+        <div class="stat stat-edit"><input id="wordsIn" type="number" inputmode="numeric" min="0" step="1" aria-label="Word count"><span id="wordsLbl" data-i18n="words">Words · tap to edit</span><button class="linkbtn" id="wordsReset" type="button" data-i18n="useScript" hidden>Use script count</button></div>
         <div class="stat"><b id="sEn">0</b><span data-i18n="enWords">English words</span></div>
         <div class="stat"><b id="sAr">0</b><span data-i18n="arWords">Arabic words</span></div>
       </div>
@@ -375,7 +381,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 const $ = id => document.getElementById(id);
 const T = {
  en:{title:"Voiceover Quote Calculator",tagline:"Paste a script. Get the length and a professional PDF quote.",script:"Script",sampleTag:"Sample",upload:"Upload .txt / .docx",loadSample:"Load sample",clear:"Clear",
-  hint:"Text in [brackets] is a note and is not counted.",words:"Words counted",enWords:"English words",arWords:"Arabic words",
+  hint:"Text in [brackets] is a note and is not counted.",words:"Words · tap to edit",wordsTyped:"Typed by you",useScript:"Use script count",enWords:"English words",arWords:"Arabic words",
   estAudio:"Estimated audio",quote:"Quote",invoice:"Invoice",quoteNo:"Quote number",invoiceNo:"Invoice number",client:"Client name",project:"Project",total:"Total",
   makePdf:"Preview PDF",copy:"Copy message",close:"Close",download:"Download PDF",
   settings:"Your business & rates",saved:"Saved on this device",brandH:"Logo & business details",logoAdd:"Tap to add your logo",logoHint:"PNG with a transparent background looks best. It stays here for next time.",logoRemove:"Remove logo",
@@ -401,7 +407,7 @@ const T = {
   pDesc:"Description",pQty:"Qty",pUnit:"Unit price",pAmt:"Amount",pSub:"Subtotal",pTotal:"Total",pNotes:"Notes",pThanks:"Thank you for your business",
   dayN:"{n} day(s)",lEn:"English",lAr:"Arabic",lBoth:"English & Arabic",noClient:"Client",min:"min"},
  ar:{title:"حاسبة عروض أسعار التعليق الصوتي",tagline:"الصق النص، واحصل على المدة وعرض سعر احترافي بصيغة PDF.",script:"النص",sampleTag:"مثال",upload:"رفع ملف ‎.txt / .docx",loadSample:"تحميل مثال",clear:"مسح",
-  hint:"النص بين [أقواس] يُعتبر ملاحظة ولا يُحسب.",words:"الكلمات المحسوبة",enWords:"كلمات إنجليزية",arWords:"كلمات عربية",
+  hint:"النص بين [أقواس] يُعتبر ملاحظة ولا يُحسب.",words:"الكلمات · اضغط للتعديل",wordsTyped:"رقم أدخلته أنت",useScript:"استخدم عدد كلمات النص",enWords:"كلمات إنجليزية",arWords:"كلمات عربية",
   estAudio:"المدة المتوقعة",quote:"عرض سعر",invoice:"فاتورة",quoteNo:"رقم العرض",invoiceNo:"رقم الفاتورة",client:"اسم العميل",project:"المشروع",total:"الإجمالي",
   makePdf:"معاينة PDF",copy:"نسخ الرسالة",close:"إغلاق",download:"تحميل PDF",
   settings:"نشاطك وأسعارك",saved:"محفوظة على هذا الجهاز",brandH:"الشعار وبيانات النشاط",logoAdd:"اضغط لإضافة شعارك",logoHint:"يفضَّل شعار PNG بخلفية شفافة. سيبقى محفوظًا للمرات القادمة.",logoRemove:"حذف الشعار",
@@ -446,11 +452,17 @@ const WORD = /[\p{L}\p{M}\p{N}]+(?:['’.\-][\p{L}\p{M}\p{N}]+)*/gu;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 const PACE = {slow:.85, normal:1, fast:1.15};
 
+let manualWords = null;
 function analyze(text){
   const f = PACE[val('pace')] || 1, wEn = (num('wpmEn')||130)*f, wAr = (num('wpmAr')||110)*f;
   // Count like Word / Google Docs: anything between spaces that has a letter or number is one word
   const w = text.replace(/\[[^\]]*\]/g, ' ').split(/\s+/).filter(x => HAS_WORD.test(x));
   const ar = w.filter(x => AR.test(x)).length, en = w.length - ar, rl = val('recLang');
+  if (manualWords !== null){
+    // A typed word count replaces the script's count (handy when there's no script yet)
+    const n = manualWords, perMin = rl==='en' ? wEn : rl==='ar' ? wAr : (wEn + wAr)/2;
+    return {words:n, ar, en, sec:n/perMin*60, manual:true};
+  }
   const sec = rl==='en' ? w.length/wEn*60 : rl==='ar' ? w.length/wAr*60 : (ar/wAr + en/wEn)*60;
   return {words:w.length, ar, en, sec};
 }
@@ -488,7 +500,9 @@ function compute(){
 function render(){
   state = compute();
   const {a, items, total} = state;
-  $('sWords').textContent = a.words; $('sEn').textContent = a.en; $('sAr').textContent = a.ar;
+  if (!a.manual && document.activeElement !== $('wordsIn')) $('wordsIn').value = a.words;
+  $('wordsLbl').textContent = t(a.manual ? 'wordsTyped' : 'words'); $('wordsReset').hidden = !a.manual;
+  $('sEn').textContent = a.en; $('sAr').textContent = a.ar;
   $('tc').textContent = fmtTC(a.sec);
   drawWave(a);
   const mode = val('mode');
@@ -942,12 +956,15 @@ $('sampleBtn').addEventListener('click', () => { $('script').value = SAMPLE; tkU
 $('clearBtn').addEventListener('click', () => { $('script').value = ''; tkUndoText = null; tkApplied = false; setTk(''); updateSampleTag(); render(); $('script').focus(); });
 $('app').addEventListener('input', e => {
   const id = e.target.id;
-  if (id==='script'){ updateSampleTag(); tkUndoText = null; tkApplied = false; setTk(''); }
+  if (id==='script'){ updateSampleTag(); tkUndoText = null; tkApplied = false; setTk(''); manualWords = null; }
+  if (id==='wordsIn'){ const v = $('wordsIn').value.trim(); manualWords = v === '' ? null : Math.max(0, Math.round(+v) || 0); }
   if (id==='qName') qNameTouched = true;
   if (id==='notes') notesTouched = true;
   if (id!=='fallback') render();
 });
 $('app').addEventListener('change', render);
+$('wordsReset').addEventListener('click', () => { manualWords = null; render(); });
+$('wordsIn').addEventListener('blur', () => { if (manualWords === null) render(); });
 
 $('file').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
