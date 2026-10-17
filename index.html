@@ -89,6 +89,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 .tk-msg.ok{color:var(--good)}
 .tk-msg.err{color:#B4442B}
 #script.has-tk{line-height:2.05}
+.tk-ctl select{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:7px 10px;max-width:100%}
 #script[readonly]{opacity:.8;cursor:progress}
 
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
@@ -215,6 +216,24 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
       </div>
       <textarea id="script" spellcheck="false" aria-label="Script"></textarea>
       <p class="hint" id="hintText"></p>
+      <div class="tk" id="trBar" hidden>
+        <div class="tk-top">
+          <span class="tk-glyph" aria-hidden="true">ع</span>
+          <div class="tk-head"><b data-i18n="trTitle">Translate to Arabic</b><small data-i18n="trSub">Turn an English script into Arabic ready for voiceover. Check it, then add tashkeel.</small></div>
+        </div>
+        <div class="tk-ctl">
+          <select id="trDialect" aria-label="Arabic style">
+            <option value="msa" data-i18n="dMsa">Modern Standard (فصحى)</option>
+            <option value="egyptian" data-i18n="dEg">Egyptian</option>
+            <option value="gulf" data-i18n="dGulf">Gulf</option>
+            <option value="levantine" data-i18n="dLev">Levantine</option>
+          </select>
+          <button class="btn tk-go" id="trRun" type="button" data-i18n="trRun">Translate to Arabic</button>
+          <button class="btn" id="trStop" type="button" data-i18n="tkStop" hidden>Stop</button>
+          <button class="btn" id="trUndo" type="button" data-i18n="tkUndo" hidden>Undo</button>
+        </div>
+        <p class="tk-msg" id="trMsg" role="status"></p>
+      </div>
       <div class="tk" id="tkBar" hidden>
         <div class="tk-top">
           <span class="tk-glyph" aria-hidden="true">شَ</span>
@@ -364,7 +383,7 @@ const T = {
   speed:"Reading speed",slow:"Slow",normal:"Normal",fast:"Fast",wpmEn:"English words per minute",wpmAr:"Arabic words per minute",
   pricing:"Pricing",perWord:"Per word",perMinute:"Per minute",flat:"Flat rate",ratePerWord:"Price per {n} words",ratePerMin:"Price per minute",rateFlat:"Flat price",blockSize:"Charge per (words)",
   tkTitle:"Arabic tashkeel",tkSub:"Add diacritics to the Arabic lines before you record. English words and [notes] stay as they are.",tkFull:"Full",tkLight:"Light (tricky words only)",
-  tkAdd:"Start tashkeel",tkRedo:"Redo tashkeel",tkBusy:"Adding tashkeel…",tkStop:"Stop",tkUndo:"Undo",tkRemove:"Remove tashkeel",tkDocx:"Download .docx",docxSaved:"Script saved as a Word file.",docxErr:"Couldn't build the Word file. Try again.",docxTitle:"Voiceover script",
+  tkAdd:"Start tashkeel",tkRedo:"Redo tashkeel",tkBusy:"Adding tashkeel…",tkStop:"Stop",tkUndo:"Undo",tkRemove:"Remove tashkeel",trTitle:"Translate to Arabic",trSub:"Turn an English script into Arabic ready for voiceover. Check it, then add tashkeel.",trRun:"Translate to Arabic",trBusy:"Translating…",trPart:"Translating part {i} of {n}…",tkPart:"Adding tashkeel, part {i} of {n}…",trDone:"Translated. Read it through and fix anything before adding tashkeel.",trUndone:"English script restored.",trOld:"Your tashkeel server needs the update before it can translate. Paste the new server code into Cloudflare.",trFail:"Translation didn't finish, so your script is unchanged. Try again.",dMsa:"Modern Standard (فصحى)",dEg:"Egyptian",dGulf:"Gulf",dLev:"Levantine",tkDocx:"Download .docx",docxSaved:"Script saved as a Word file.",docxErr:"Couldn't build the Word file. Try again.",docxTitle:"Voiceover script",
   tkThinking:"Reading the script…",tkDone:"Tashkeel added. Check the word endings before you record.",tkChanged:"Done, but some letters changed besides the diacritics. Check the script, or press Undo.",
   tkRemoved:"Tashkeel removed.",tkUndone:"Original script restored.",tkLong:"The script is too long for one pass. Split it and add tashkeel to each part.",
   tkDenied:"Claude wasn't allowed for this page, so tashkeel is off.",tkLimit:"You've reached your Claude usage limit. Try again later.",
@@ -390,7 +409,7 @@ const T = {
   speed:"سرعة القراءة",slow:"بطيئة",normal:"عادية",fast:"سريعة",wpmEn:"كلمة إنجليزية في الدقيقة",wpmAr:"كلمة عربية في الدقيقة",
   pricing:"التسعير",perWord:"بالكلمة",perMinute:"بالدقيقة",flat:"سعر ثابت",ratePerWord:"السعر لكل {n} كلمة",ratePerMin:"سعر الدقيقة",rateFlat:"السعر الثابت",blockSize:"التسعير لكل (كلمة)",
   tkTitle:"التشكيل العربي",tkSub:"أضف الحركات إلى السطور العربية قبل التسجيل. الكلمات الإنجليزية و[الملاحظات] تبقى كما هي.",tkFull:"كامل",tkLight:"خفيف (المواضع الملتبسة فقط)",
-  tkAdd:"ابدأ التشكيل",tkRedo:"أعد التشكيل",tkBusy:"جارٍ التشكيل…",tkStop:"إيقاف",tkUndo:"تراجع",tkRemove:"إزالة التشكيل",tkDocx:"تحميل ملف Word",docxSaved:"تم حفظ النص كملف Word.",docxErr:"تعذّر إنشاء ملف Word. حاول مرة أخرى.",docxTitle:"نص التعليق الصوتي",
+  tkAdd:"ابدأ التشكيل",tkRedo:"أعد التشكيل",tkBusy:"جارٍ التشكيل…",tkStop:"إيقاف",tkUndo:"تراجع",tkRemove:"إزالة التشكيل",trTitle:"الترجمة إلى العربية",trSub:"حوّل النص الإنجليزي إلى نص عربي جاهز للتسجيل. راجعه ثم أضف التشكيل.",trRun:"ترجم إلى العربية",trBusy:"جارٍ الترجمة…",trPart:"جارٍ ترجمة الجزء {i} من {n}…",tkPart:"جارٍ التشكيل، الجزء {i} من {n}…",trDone:"تمت الترجمة. راجع النص وعدّل ما يلزم قبل التشكيل.",trUndone:"تمت استعادة النص الإنجليزي.",trOld:"خادم التشكيل يحتاج إلى التحديث ليترجم. الصق كود الخادم الجديد في Cloudflare.",trFail:"لم تكتمل الترجمة، والنص لم يتغيّر. حاول مرة أخرى.",dMsa:"الفصحى",dEg:"المصرية",dGulf:"الخليجية",dLev:"الشامية",tkDocx:"تحميل ملف Word",docxSaved:"تم حفظ النص كملف Word.",docxErr:"تعذّر إنشاء ملف Word. حاول مرة أخرى.",docxTitle:"نص التعليق الصوتي",
   tkThinking:"جارٍ قراءة النص…",tkDone:"تم التشكيل. راجع أواخر الكلمات قبل التسجيل.",tkChanged:"تم، لكن بعض الحروف تغيّرت إلى جانب الحركات. راجع النص أو اضغط تراجع.",
   tkRemoved:"تمت إزالة التشكيل.",tkUndone:"تمت استعادة النص الأصلي.",tkLong:"النص طويل على دفعة واحدة. قسّمه وشكّل كل جزء على حدة.",
   tkDenied:"لم يُسمح لهذه الصفحة باستخدام Claude، لذلك التشكيل متوقف.",tkLimit:"وصلت إلى حد استخدام Claude. حاول لاحقًا.",
@@ -481,7 +500,7 @@ function render(){
     ? items.map(l => `<div class="line"><span>${esc(l.desc)}${l.sub?`<small>${esc(l.sub)}</small>`:''}</span><span>${money(l.amt)}</span></div>`).join('')
     : `<div class="line"><span style="color:var(--muted)">${t('empty')}</span><span></span></div>`;
   $('total').textContent = money(total);
-  updateTk();
+  updateTk(); updateTr();
   save();
 }
 
@@ -699,14 +718,98 @@ async function tkViaClaude(text, mode, signal){
   if (r.truncated) throw {code:'truncated'};
   return tkClean(r.text);
 }
-async function tkViaServer(text, mode, signal){
+/* Long scripts are sent in parts (the server takes up to 4,000 characters at a time) and joined back together */
+const PART_MAX = 3500;
+function splitParts(text){
+  const parts = []; let cur = null;
+  const flush = () => { if (cur !== null){ parts.push({t:cur, join:'\n'}); cur = null; } };
+  for (const line of text.split('\n')){
+    if (line.length > PART_MAX){
+      flush();
+      const bits = line.split(/(?<=[.!?؟。])\s+/); let piece = '', first = true;
+      const push = () => { parts.push({t:piece, join: first ? '\n' : ' '}); first = false; };
+      bits.forEach(x => { if (piece && (piece + ' ' + x).length > PART_MAX){ push(); piece = x; } else piece = piece ? piece + ' ' + x : x; });
+      if (piece) push();
+      continue;
+    }
+    if (cur !== null && cur.length + 1 + line.length > PART_MAX) flush();
+    cur = cur === null ? line : cur + '\n' + line;
+  }
+  flush();
+  return parts;
+}
+async function callServer(payload, signal){
   let res;
-  try { res = await fetch(TK_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text, mode}), signal}); }
+  try { res = await fetch(TK_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal}); }
   catch(e){ throw {code: e && e.name === 'AbortError' ? 'cancelled' : 'offline'}; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw {code:'server', message:data.error};
   return tkClean(data.result || '');
 }
+async function runParts(text, makePayload, skip, onPart, signal){
+  const parts = splitParts(text); let out = '';
+  for (let i = 0; i < parts.length; i++){
+    const m = parts[i].t.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    let done = m[0];
+    if (m[2] && !skip(m[2])){ onPart(i + 1, parts.length); done = m[1] + await callServer(makePayload(m[2]), signal) + m[3]; }
+    out += (i ? parts[i].join : '') + done;
+  }
+  return out;
+}
+async function tkViaServer(text, mode, signal){
+  return runParts(text, core => ({task:'tashkeel', text:core, mode}), core => !AR.test(core),
+    (i, n) => setTk(n > 1 ? t('tkPart', {i, n}) : t('tkBusy')), signal);
+}
+
+/* ---------- Translate to Arabic ---------- */
+let trBusy = false, trCtl = null, trUndoText = null;
+const hasLatin = s => /[A-Za-z]/.test(s.replace(/\[[^\]]*\]/g, ''));
+function setTr(msg, kind){ $('trMsg').textContent = msg; $('trMsg').className = 'tk-msg' + (kind ? ' ' + kind : ''); }
+function updateTr(){
+  if (trBusy) return;
+  $('trBar').hidden = !hasLatin($('script').value) && trUndoText === null;
+  $('trUndo').hidden = trUndoText === null;
+}
+function trBusyUI(b){
+  trBusy = b; $('script').readOnly = b;
+  $('trRun').disabled = b; $('trRun').textContent = b ? t('trBusy') : t('trRun');
+  $('trStop').hidden = !b; if (b) $('trUndo').hidden = true;
+  $('tkRun').disabled = b;
+}
+$('trRun').addEventListener('click', async () => {
+  if (trBusy || tkBusy) return;
+  const src = $('script').value, dialect = $('trDialect').value || 'msa';
+  if (!hasLatin(src)) return;
+  trCtl = new AbortController();
+  trBusyUI(true); setTr(t('trBusy'));
+  try {
+    const out = await runParts(src, core => ({task:'translate', text:core, dialect}), core => !hasLatin(core),
+      (i, n) => setTr(n > 1 ? t('trPart', {i, n}) : t('trBusy')), trCtl.signal);
+    if (!out.trim()) throw {code:'empty'};
+    if (!AR.test(out)) throw {code:'old'};
+    $('script').value = out; trUndoText = src; tkUndoText = null; tkApplied = false;
+    const ar = document.querySelector('input[name=recLang][value=ar]'); if (ar) ar.checked = true;
+    setTr(t('trDone'), 'ok'); setTk('');
+  } catch(e){
+    $('script').value = src;
+    const c = e && e.code;
+    const msg = c === 'cancelled' ? ''
+      : c === 'old' || (c === 'server' && /لا يوجد نص عربي/.test(e.message || '')) ? t('trOld')
+      : c === 'offline' ? t('tkOffline')
+      : c === 'server' && e.message ? e.message
+      : t('trFail');
+    setTr(msg, msg ? 'err' : '');
+  } finally {
+    trBusyUI(false); updateSampleTag(); render();
+  }
+});
+$('trStop').addEventListener('click', () => { if (trCtl) trCtl.abort(); });
+$('trUndo').addEventListener('click', () => {
+  if (trUndoText === null) return;
+  $('script').value = trUndoText; trUndoText = null; tkUndoText = null; tkApplied = false;
+  const en = document.querySelector('input[name=recLang][value=en]'); if (en) en.checked = true;
+  setTr(t('trUndone')); setTk(''); updateSampleTag(); render();
+});
 
 $('tkRun').addEventListener('click', async () => {
   if (tkBusy) return;
@@ -801,7 +904,7 @@ $('tkRemove').addEventListener('click', () => {
 });
 
 /* ---------- save / load ---------- */
-const KEYS = ['wpmEn','wpmAr','rate','blockSize','currency','days','xRush','xRushV','xComm','xCommV','xCom2','xCom2V','xMix','xMixV','xRev','xRevN','xRevV','myName','myBiz','myEmail','myWeb','notes'];
+const KEYS = ['wpmEn','wpmAr','rate','blockSize','currency','days','xRush','xRushV','xComm','xCommV','xCom2','xCom2V','xMix','xMixV','xRev','xRevN','xRevV','myName','myBiz','myEmail','myWeb','notes','trDialect'];
 let notesTouched = false;
 function save(){
   try {

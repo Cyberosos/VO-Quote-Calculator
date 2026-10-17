@@ -1,5 +1,6 @@
 // AOVO Tashkeel server — Cloudflare Worker
-// Keeps your Claude API key secret and adds tashkeel to Arabic text.
+// Keeps your Claude API key secret, adds tashkeel to Arabic text,
+// and translates scripts into Arabic for voiceover.
 //
 // Settings to add in Cloudflare (Worker > Settings > Variables and Secrets):
 //   ANTHROPIC_API_KEY  (type: Secret)  -> your key from console.anthropic.com
@@ -8,6 +9,25 @@
 
 const MODEL = "claude-sonnet-5-5"; // good Arabic quality at a fair price
 const MAX_CHARS = 4000;            // longest text accepted in one request
+
+const DIALECTS = {
+  msa: "Modern Standard Arabic (الفصحى), clear and natural for broadcast voiceover",
+  egyptian: "Egyptian Arabic (العامية المصرية), natural and conversational, written the way Egyptians speak",
+  gulf: "Gulf Arabic (اللهجة الخليجية), natural and conversational",
+  levantine: "Levantine Arabic (اللهجة الشامية), natural and conversational",
+};
+
+const translatePrompt = (dialect) => `You are a professional English-to-Arabic translator who writes scripts for Arabic voiceover artists.
+Translate the user's script into ${DIALECTS[dialect] || DIALECTS.msa}.
+Rules:
+- Write for the ear: smooth sentences a voice actor can read aloud naturally, faithful to the meaning and tone of the original.
+- Keep exactly the same line and paragraph structure: one translated line for each original line, and keep empty lines where they are.
+- Keep anything inside [square brackets] exactly as it is; those are performance notes, not script.
+- Keep brand names, product names and website addresses as they are in the original, unless the brand has a well-known Arabic spelling.
+- Keep numbers, times and dates as digits.
+- If a line is already in Arabic, keep it as it is.
+- Do not add tashkeel; that is a separate step.
+- Return ONLY the translated script, with no explanation, title, notes, or quotation marks.`;
 
 const PROMPTS = {
   full: `You are an expert in Arabic grammar (النحو والصرف) preparing scripts for professional voiceover artists.
@@ -50,11 +70,13 @@ export default {
     try { body = await request.json(); } catch { return reply({ error: "Invalid request" }, 400); }
 
     const text = (body.text || "").trim();
+    const task = body.task === "translate" ? "translate" : "tashkeel";
     const mode = body.mode === "light" ? "light" : "full";
+    const dialect = DIALECTS[body.dialect] ? body.dialect : "msa";
     if (!text) return reply({ error: "النص فارغ" }, 400);
     if (text.length > MAX_CHARS)
       return reply({ error: `النص طويل جدًا (الحد الأقصى ${MAX_CHARS} حرف)` }, 400);
-    if (!/[\u0600-\u06FF]/.test(text)) return reply({ error: "لا يوجد نص عربي" }, 400);
+    if (task === "tashkeel" && !/[\u0600-\u06FF]/.test(text)) return reply({ error: "لا يوجد نص عربي" }, 400);
 
     if (!env.ANTHROPIC_API_KEY) return reply({ error: "مفتاح API غير مضاف في إعدادات Cloudflare" }, 500);
 
@@ -70,7 +92,7 @@ export default {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 16000,
-        system: PROMPTS[mode],
+        system: task === "translate" ? translatePrompt(dialect) : PROMPTS[mode],
         messages: [{ role: "user", content: text }],
       }),
     });
@@ -90,6 +112,6 @@ export default {
 
     const data = await apiRes.json();
     const result = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
-    return reply({ result, mode });
+    return reply({ result, task, mode, dialect });
   },
 };
