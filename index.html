@@ -424,11 +424,13 @@ Order today at nilecoffee.example and get free delivery on your first bag.`;
 
 const AR = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 const WORD = /[\p{L}\p{M}\p{N}]+(?:['’.\-][\p{L}\p{M}\p{N}]+)*/gu;
+const HAS_WORD = /[\p{L}\p{N}]/u;
 const PACE = {slow:.85, normal:1, fast:1.15};
 
 function analyze(text){
   const f = PACE[val('pace')] || 1, wEn = (num('wpmEn')||130)*f, wAr = (num('wpmAr')||110)*f;
-  const w = text.replace(/\[[^\]]*\]/g, ' ').match(WORD) || [];
+  // Count like Word / Google Docs: anything between spaces that has a letter or number is one word
+  const w = text.replace(/\[[^\]]*\]/g, ' ').split(/\s+/).filter(x => HAS_WORD.test(x));
   const ar = w.filter(x => AR.test(x)).length, en = w.length - ar, rl = val('recLang');
   const sec = rl==='en' ? w.length/wEn*60 : rl==='ar' ? w.length/wAr*60 : (ar/wAr + en/wEn)*60;
   return {words:w.length, ar, en, sec};
