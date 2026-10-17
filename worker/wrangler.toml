@@ -1,0 +1,9 @@
+# Cloudflare settings for the AOVO tashkeel server.
+# "name" must match the worker's name in Cloudflare (tashkeel.hamdeen96.workers.dev -> "tashkeel").
+name = "tashkeel"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Keep the settings you added in the Cloudflare dashboard (ALLOWED_ORIGIN).
+# Your ANTHROPIC_API_KEY secret is never touched by a deploy.
+keep_vars = true
