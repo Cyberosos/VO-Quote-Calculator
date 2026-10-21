@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="vendor/cfb.min.js" defer></script>
 <style>
 /* Layout: studio console. Script + business settings on the left, sticky quote rack on the right; phones stack script → quote → settings. The PDF invoice is a fixed light A4 sheet. */
 :root{
@@ -214,8 +215,8 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
       <div class="ph">
         <div style="display:flex;align-items:center;gap:8px"><h2 data-i18n="script">Script</h2><span class="sample" id="sampleTag" data-i18n="sampleTag">Sample</span></div>
         <div class="tools">
-          <label class="btn" for="file"><span data-i18n="upload">Upload .txt / .docx</span></label>
-          <input id="file" type="file" accept=".txt,.docx,text/plain" hidden>
+          <label class="btn" for="file"><span data-i18n="upload">Upload .txt / .doc / .docx</span></label>
+          <input id="file" type="file" accept=".txt,.doc,.docx,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
           <button class="btn" id="sampleBtn" type="button" data-i18n="loadSample">Load sample</button>
           <button class="btn" id="clearBtn" type="button" data-i18n="clear">Clear</button>
         </div>
@@ -380,7 +381,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 <script>
 const $ = id => document.getElementById(id);
 const T = {
- en:{title:"Voiceover Quote Calculator",tagline:"Paste a script. Get the length and a professional PDF quote.",script:"Script",sampleTag:"Sample",upload:"Upload .txt / .docx",loadSample:"Load sample",clear:"Clear",
+ en:{title:"Voiceover Quote Calculator",tagline:"Paste a script. Get the length and a professional PDF quote.",script:"Script",sampleTag:"Sample",upload:"Upload .txt / .doc / .docx",loadSample:"Load sample",clear:"Clear",
   hint:"Text in [brackets] is a note and is not counted.",words:"Words · tap to edit",wordsTyped:"Typed by you",useScript:"Use script count",enWords:"English words",arWords:"Arabic words",
   estAudio:"Estimated audio",quote:"Quote",invoice:"Invoice",quoteNo:"Quote number",invoiceNo:"Invoice number",client:"Client name",project:"Project",total:"Total",
   makePdf:"Preview PDF",copy:"Copy message",close:"Close",download:"Download PDF",
@@ -406,7 +407,7 @@ const T = {
   pFrom:"From",pTo:"Prepared for",pDate:"Date",pValid:"Valid until",pDue:"Due date",pNo:"No.",pProject:"Project",pWords:"Words",pLength:"Est. length",pDelivery:"Delivery",pLang:"Language",
   pDesc:"Description",pQty:"Qty",pUnit:"Unit price",pAmt:"Amount",pSub:"Subtotal",pTotal:"Total",pNotes:"Notes",pThanks:"Thank you for your business",
   dayN:"{n} day(s)",lEn:"English",lAr:"Arabic",lBoth:"English & Arabic",noClient:"Client",min:"min"},
- ar:{title:"حاسبة عروض أسعار التعليق الصوتي",tagline:"الصق النص، واحصل على المدة وعرض سعر احترافي بصيغة PDF.",script:"النص",sampleTag:"مثال",upload:"رفع ملف ‎.txt / .docx",loadSample:"تحميل مثال",clear:"مسح",
+ ar:{title:"حاسبة عروض أسعار التعليق الصوتي",tagline:"الصق النص، واحصل على المدة وعرض سعر احترافي بصيغة PDF.",script:"النص",sampleTag:"مثال",upload:"رفع ملف ‎.txt / .doc / .docx",loadSample:"تحميل مثال",clear:"مسح",
   hint:"النص بين [أقواس] يُعتبر ملاحظة ولا يُحسب.",words:"الكلمات · اضغط للتعديل",wordsTyped:"رقم أدخلته أنت",useScript:"استخدم عدد كلمات النص",enWords:"كلمات إنجليزية",arWords:"كلمات عربية",
   estAudio:"المدة المتوقعة",quote:"عرض سعر",invoice:"فاتورة",quoteNo:"رقم العرض",invoiceNo:"رقم الفاتورة",client:"اسم العميل",project:"المشروع",total:"الإجمالي",
   makePdf:"معاينة PDF",copy:"نسخ الرسالة",close:"إغلاق",download:"تحميل PDF",
@@ -966,6 +967,41 @@ $('app').addEventListener('change', render);
 $('wordsReset').addEventListener('click', () => { manualWords = null; render(); });
 $('wordsIn').addEventListener('blur', () => { if (manualWords === null) render(); });
 
+
+/* ---------- Old Word (.doc, Word 97–2003) reader ----------
+   Reads the document's piece table and pulls out the plain text, including Arabic. */
+function readDoc(bytes){
+  if (!window.CFB) throw new Error('cfb');
+  const cfb = CFB.read(bytes, {type:'array'});
+  const get = name => { const e = CFB.find(cfb, name); return e && e.content ? Uint8Array.from(e.content) : null; };
+  const wd = get('WordDocument'); if (!wd) throw new Error('not a Word document');
+  const dv = new DataView(wd.buffer, wd.byteOffset, wd.byteLength);
+  if (dv.getUint16(0, true) !== 0xA5EC) throw new Error('not a Word 97+ document');
+  if (dv.getUint16(0x0A, true) & 0x0100) throw new Error('encrypted');
+  const tbl = get((dv.getUint16(0x0A, true) & 0x0200) ? '1Table' : '0Table'); if (!tbl) throw new Error('no table stream');
+  const fcClx = dv.getUint32(0x01A2, true), lcbClx = dv.getUint32(0x01A6, true);
+  const tv = new DataView(tbl.buffer, tbl.byteOffset, tbl.byteLength);
+  let i = fcClx, end = fcClx + lcbClx, out = '';
+  while (i < end && tbl[i] === 0x01) i += 3 + tv.getUint16(i + 1, true);   // skip formatting blocks
+  if (tbl[i] !== 0x02) throw new Error('no piece table');
+  const lcb = tv.getUint32(i + 1, true), base = i + 5, n = (lcb - 4) / 12;
+  const dec1252 = new TextDecoder('windows-1252'), dec16 = new TextDecoder('utf-16le');
+  for (let k = 0; k < n; k++){
+    const cpA = tv.getUint32(base + k*4, true), cpB = tv.getUint32(base + (k+1)*4, true);
+    let fc = tv.getUint32(base + (n+1)*4 + k*8 + 2, true);
+    const len = cpB - cpA;
+    if (fc & 0x40000000){ fc = (fc & ~0x40000000) / 2; out += dec1252.decode(wd.subarray(fc, fc + len)); }
+    else out += dec16.decode(wd.subarray(fc, fc + len*2));
+  }
+  // Keep only the main text (drop footnotes, headers and the rest that follow it)
+  const ccpText = dv.getUint32(0x4C, true);
+  if (ccpText > 0 && ccpText <= out.length) out = out.slice(0, ccpText);
+  // Field codes: keep the shown result, drop the hidden instruction
+  out = out.replace(/\x13[^\x13\x14\x15]*\x14([^\x13\x14\x15]*)\x15/g, '$1').replace(/\x13[^\x13\x14\x15]*\x15/g, '');
+  return out.replace(/\r\x07|\x07/g, '\t').replace(/[\r\x0b\x0c]/g, '\n')
+            .replace(/[\x00-\x08\x0e-\x1f]/g, '').replace(/\t+\n/g, '\n');
+}
+
 $('file').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
@@ -974,6 +1010,13 @@ $('file').addEventListener('change', async e => {
       if (!window.mammoth) throw new Error('mammoth');
       setStatus(t('docxLoading'));
       text = (await mammoth.extractRawText({arrayBuffer: await f.arrayBuffer()})).value;
+    } else if (/\.doc$/i.test(f.name)){
+      setStatus(t('docxLoading'));
+      const buf = new Uint8Array(await f.arrayBuffer());
+      // Some ".doc" files are really .docx (zip) or plain text/HTML saved with a .doc name
+      if (buf[0] === 0x50 && buf[1] === 0x4B && window.mammoth) text = (await mammoth.extractRawText({arrayBuffer: buf.buffer})).value;
+      else if (buf[0] === 0xD0 && buf[1] === 0xCF) text = readDoc(buf);
+      else text = await f.text();
     } else text = await f.text();
     $('script').value = text.trim(); setStatus('');
     if (!$('project').value) $('project').value = f.name.replace(/\.[^.]+$/, '');
